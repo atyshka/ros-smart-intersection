@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+
+<!--derived from the ugv_course_launch audibot_road_world launch file. 
+
+    The world created is also derived from the road_world -->
+
+<launch>
+
+  <include file="$(find smart_intersection_gazebo)/launch/intersection_world.launch" />
+  
+  <node pkg="rviz" type="rviz" name="lane_keep_viz" args="-d $(find audibot_lane_detection)/rviz/lane_detection.rviz" />
+
+</launch>
