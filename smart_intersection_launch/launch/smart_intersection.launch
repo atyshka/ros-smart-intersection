@@ -18,8 +18,8 @@
 
   <!-- Include the actual intersections that we're developing -->
   <include file="$(find smart_intersection_launch)/launch/intersection.launch">
-    <arg name="pose_x" value="-152.5" />
-    <arg name="pose_y" value="275.2" />
+    <arg name="pose_x" value="-150.74" />
+    <arg name="pose_y" value="273.96" />
     <arg name="intersection_id" value="1" /> <!-- This is one because the default is 0 and I wanna make sure the parameter is being passed properly -->
   </include>
 
