@@ -19,9 +19,9 @@ geometry_msgs::Twist command;
 nav_msgs::PathConstPtr latest_path;
 
 // PID
-double Kp = 0.15;
+double Kp = 1.5;
 double Ki = 0.0;
-double Kd = 0.015;
+double Kd = 0.0;
 
 
 double heading = 0;
@@ -72,7 +72,7 @@ void cmdUpdate(const ros::TimerEvent& event){
 
   // P Heading controller
   dr_heading = fmod(dr_heading + dr_turn, 360);
-  float desired_heading = dr_heading;//atan2(target_pose.pose.position.y, target_pose.pose.position.x) * -180/PI + 90;
+  float desired_heading = atan2(target_pose.pose.position.y, target_pose.pose.position.x);
   
   float kp = 0.075; //0.0588
   float err = fmod(heading - desired_heading + 180, 360) - 180;
@@ -90,7 +90,7 @@ void cmdUpdate(const ros::TimerEvent& event){
   double dt = 0.05;
 
   // Calculate error
-  double error = fmod(heading - desired_heading + 180, 360) - 180;
+  double error = desired_heading;//fmod(heading - desired_heading + 180, 360) - 180;
 
   // Proportional term
   double Pout = Kp * error;
