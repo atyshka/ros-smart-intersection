@@ -22,10 +22,10 @@ class Intersection
     // key: time in ms, 4 bools for each time step for each direction
     std::map<uint64_t, std::array<bool, 4>> slotmap_;
 
-    void getTrajectory(const geometry_msgs::PoseStamped& pose, double speed, const Direction& direction);
+    void getTrajectory(std::vector<geometry_msgs::PoseStamped>& result, const geometry_msgs::PoseStamped& pose, double speed, const Direction& direction);
 
   private:
-    void generateTrajectory(std::vector<double>& pos_out, std::vector<double>& vel_out, double pos_f, double vel_0, double vel_f, double end_time, int resolution);
+    void generateTrajectory(std::vector<double>& pos_out, double pos_f, double vel_0, double vel_f, double end_time, int resolution);
 };
 
 } // namespace smart_intersection

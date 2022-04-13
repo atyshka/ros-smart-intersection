@@ -10,11 +10,9 @@
     <arg name="pose_y" default="150" />
 
     <group ns="intersection_$(arg intersection_id)" >
-        <node pkg="tf" type="static_transform_publisher" name="transform" args="$(arg pose_x) $(arg pose_y) 0 0 0 0 world intersection_$(arg intersection_id)_transform 10" /> 
+        <node pkg="tf" type="static_transform_publisher" name="transform" args="$(arg pose_x) $(arg pose_y) 0 0 0 0 world intersection_$(arg intersection_id) 10" /> 
         <node pkg="smart_intersection" type="smart_intersection_node" name="intersection" output="screen">
-            <param name="pose_x" value="$(arg pose_x)" />
-            <param name="pose_y" value="$(arg pose_y)" />
-            <param name="intersection_id" value="0" />
+            <param name="intersection_id" value="0" type="str"/>
         </node>
     </group>
 </launch>

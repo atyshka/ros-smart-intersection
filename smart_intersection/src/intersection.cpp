@@ -1,4 +1,5 @@
 #include "intersection.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
 namespace smart_intersection
 {
@@ -8,21 +9,23 @@ namespace smart_intersection
   {
   }
 
-  void Intersection::generateTrajectory(std::vector<double> &pos_out, std::vector<double> &vel_out, double pos_f, double vel_0, double vel_f, double duration, int resolution)
+  void Intersection::generateTrajectory(std::vector<double> &pos_out, double pos_f, double vel_0, double vel_f, double duration, int resolution)
   {
-    double a = (2 * pos_f - duration * (vel_f - vel_0)) / (-duration * duration * duration);
-    double b = (vel_f - vel_0 - 3 * a * duration * duration) / (2 * duration);
+    ROS_INFO("pos final %f, vel0 %f, velf %f, duration %f, resolution %d", pos_f, vel_0, vel_f, duration, resolution);
+    double a = (-2 / (duration * duration * duration)) * (pos_f) + (1 / (duration * duration)) * (vel_0 + vel_f);
+    double b = (3 / (duration * duration)) * pos_f - (2 / duration) * vel_0 - (1 / duration) * vel_f;
     double c = vel_0;
+    ROS_INFO("a %f, b %f, c %f\n", a, b, c);
     for (int i = 0; i < (int)(duration * resolution); i++)
     {
       double t = i / (double)resolution;
       pos_out.push_back(a * t * t * t + b * t * t + c * t);
-      vel_out.push_back(3 * a * t * t + 2 * b * t + c);
     }
   }
 
-  void Intersection::getTrajectory(const geometry_msgs::PoseStamped &pose, double speed, const Direction &direction)
+  void Intersection::getTrajectory(std::vector<geometry_msgs::PoseStamped> &result, const geometry_msgs::PoseStamped &pose, double speed, const Direction &direction)
   {
+
     double target_speed = (speed + speed_) / 2.0;
     // approach point relative to intersection frame
     tf2::Vector3 approach_point_rel;
@@ -42,7 +45,7 @@ namespace smart_intersection
       break;
     }
     // approach point in global frame
-    tf2::Vector3 approach_point_global = pose_ * approach_point_rel;
+    // tf2::Vector3 approach_point_global = pose_ * approach_point_rel;
     double projected_toa = pose.header.stamp.toSec() + distance_ / target_speed;
     if (direction == Direction::UP || direction == Direction::DOWN)
     {
@@ -61,18 +64,21 @@ namespace smart_intersection
     ROS_INFO("Added slot at %lu", key);
     std::vector<double> pos, vel;
     std::stringstream ss;
-    generateTrajectory(pos, vel, distance_, speed, target_speed, projected_toa_aligned - pose.header.stamp.toSec(), 10);
+    // this generates the first half, cubic in 1d space, 0-1
+    generateTrajectory(pos, distance_, speed, target_speed, projected_toa_aligned - pose.header.stamp.toSec(), 100);
+    tf2::Vector3 intersection_center;
+    // second half, 1-2
+    for (int i = 0; i < (100 * distance_ / target_speed); i++)
+    {
+      pos.push_back(1.0 + (double)i / (100 * distance_ / target_speed));
+    }
     for (int i = 0; i < pos.size(); i++)
     {
-      ss << pos[i] << ", ";
+      geometry_msgs::PoseStamped pose_msg;
+      pose_msg.header.stamp = ros::Time(projected_toa_aligned + i / 100.0);
+      tf2::Vector3 position = (intersection_center * (pos[i] / distance_) + approach_point_rel * ((distance_ - pos[i]) / distance_));
+      tf2::toMsg(position, pose_msg.pose.position);
+      result.push_back(pose_msg);
     }
-    ROS_INFO("size %d, content %s", pos.size(), ss.str().c_str());
-
-    for (int i = 0; i < vel.size(); i++)
-    {
-      ss << vel[i] << ", ";
-    }
-    ROS_INFO("size %d, content %s", vel.size(), ss.str().c_str());
   }
-
 } // namespace smart_intersection
