@@ -35,7 +35,7 @@ Each audibot exists in its own space which is defined by the vehicle_id -->
 
     <param name="/use_sim_time" value="true" />
 
-    <node pkg="audibot_path_following" type="audibot_path_following" name="path_following" output="screen" />
+    <node pkg="pose_follower_ackermann" type="pose_follower_ackermann_node" name="path_following" output="screen" />
     <node pkg="audibot_twist_controller" type="audibot_twist_node" name="twist_control" output="screen" />
 
     <node name="speed_reconfig" pkg="dynamic_reconfigure" type="dynparam" args="set_from_parameters /audibot_$(arg vehicle_id)/path_following">
