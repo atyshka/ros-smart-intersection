@@ -167,7 +167,7 @@ Visualization Manager:
           Value: true
         audibot_4/wheel_rr:
           Value: true
-        intersection_1_transform:
+        intersection_1:
           Value: true
         world:
           Value: true
@@ -263,7 +263,7 @@ Visualization Manager:
                 {}
             audibot_4/gps:
               {}
-          intersection_1_transform:
+          intersection_1:
             {}
       Update Interval: 0
       Value: true
@@ -1081,7 +1081,7 @@ Visualization Manager:
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: intersection_1_transform
+    Fixed Frame: intersection_1
     Frame Rate: 30
   Name: root
   Tools:
@@ -1115,7 +1115,7 @@ Visualization Manager:
       Name: Current View
       Near Clip Distance: 0.009999999776482582
       Scale: 9.838696479797363
-      Target Frame: intersection_1_transform
+      Target Frame: intersection_1
       Value: TopDownOrtho (rviz)
       X: 0
       Y: 0
