@@ -2,6 +2,7 @@
 #include "intersection.h"
 #include <tf2_ros/transform_listener.h>
 #include <smart_intersection/PathRequest.h>
+#include <memory>
 
 namespace smart_intersection
 {
