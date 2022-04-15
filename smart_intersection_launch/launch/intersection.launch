@@ -4,7 +4,7 @@
     this is a seperate launch file incase we wanted to create multiple intersections on the same map -->
 
 <launch>
-
+    
     <arg name="intersection_id" default="0" />
     <arg name="pose_x" default="150" />
     <arg name="pose_y" default="150" />
@@ -12,6 +12,7 @@
     <group ns="intersection_$(arg intersection_id)" >
         <node pkg="tf" type="static_transform_publisher" name="transform" args="$(arg pose_x) $(arg pose_y) 0 0 0 0 world intersection_$(arg intersection_id) 10" /> 
         <node pkg="smart_intersection" type="smart_intersection_node" name="intersection" output="screen">
+            <param name="/use_sim_time" value="true" />
             <param name="intersection_id" value="$(arg intersection_id)" type="str"/>
         </node>
     </group>

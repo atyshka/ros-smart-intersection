@@ -25,7 +25,7 @@
 
 
   <include file="$(find smart_intersection_gazebo)/launch/audibot_PID_WIP.launch" if="$(eval arg('num_audibot') >= 1)">
-    <arg name="start_x" value="-177.161" />
+    <arg name="start_x" value="-202.123" />
     <arg name="start_y" value="271.97" />
     <arg name="start_yaw" value="-0.024875" />
     <arg name="vehicle_id" value="0" />
@@ -54,7 +54,7 @@
 
 
   <include file="$(find smart_intersection_gazebo)/launch/audibot_PID_WIP.launch" if="$(eval arg('num_audibot') >= 5)">
-    <arg name="start_x" value="-202.123" />
+    <arg name="start_x" value="-177.161" />
     <arg name="start_y" value="271.92" />
     <arg name="start_yaw" value="-0.019" />
     <arg name="vehicle_id" value="4" />

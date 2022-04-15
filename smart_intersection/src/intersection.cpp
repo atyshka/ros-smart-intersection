@@ -26,27 +26,32 @@ namespace smart_intersection
   void Intersection::getTrajectory(std::vector<geometry_msgs::PoseStamped> &result, const geometry_msgs::PoseStamped &pose, double speed, const Direction &direction)
   {
 
-    double target_speed = (speed + speed_) / 2.0;
+    double avg_speed = (speed + speed_) / 2.0;
     // approach point relative to intersection frame
     tf2::Vector3 approach_point_rel;
+    tf2::Vector3 intersection_center;
     switch (direction)
     {
     case Direction::UP:
-      approach_point_rel = tf2::Vector3(0, distance_, 0);
+      approach_point_rel = tf2::Vector3(-2, distance_, 0);
+      intersection_center.setX(-2);
       break;
     case Direction::DOWN:
-      approach_point_rel = tf2::Vector3(0, -distance_, 0);
+      approach_point_rel = tf2::Vector3(2, -distance_, 0);
+      intersection_center.setX(2);
       break;
     case Direction::LEFT:
-      approach_point_rel = tf2::Vector3(-distance_, 0, 0);
+      approach_point_rel = tf2::Vector3(-distance_, -2, 0);
+      intersection_center.setY(-2);
       break;
     case Direction::RIGHT:
-      approach_point_rel = tf2::Vector3(distance_, 0, 0);
+      approach_point_rel = tf2::Vector3(distance_, 2, 0);
+      intersection_center.setY(2);
       break;
     }
-    // approach point in global frame
-    // tf2::Vector3 approach_point_global = pose_ * approach_point_rel;
-    double projected_toa = pose.header.stamp.toSec() + distance_ / target_speed;
+
+    ros::Time src_time = ros::Time::now(); // Change this to message stamp
+    double projected_toa = src_time.toSec() + distance_ / avg_speed;
     if (direction == Direction::UP || direction == Direction::DOWN)
     {
       projected_toa -= (interval_ / 2);
@@ -65,17 +70,22 @@ namespace smart_intersection
     std::vector<double> pos, vel;
     std::stringstream ss;
     // this generates the first half, cubic in 1d space, 0-1
-    generateTrajectory(pos, distance_, speed, target_speed, projected_toa_aligned - pose.header.stamp.toSec(), 100);
-    tf2::Vector3 intersection_center;
+    generateTrajectory(pos, distance_, speed, speed_, projected_toa_aligned - src_time.toSec(), 100);
+    
     // second half, 1-2
-    for (int i = 0; i < (100 * distance_ / target_speed); i++)
+    for (int i = 0; i < (100 * distance_ / speed_); i++)
     {
-      pos.push_back(1.0 + (double)i / (100 * distance_ / target_speed));
+      pos.push_back(distance_ + (double)i / (100 / speed_));
     }
     for (int i = 0; i < pos.size(); i++)
     {
+      ss << pos[i] << " ";
+    }
+    ROS_INFO("pos %s", ss.str().c_str());
+    for (int i = 0; i < pos.size(); i++)
+    {
       geometry_msgs::PoseStamped pose_msg;
-      pose_msg.header.stamp = ros::Time(projected_toa_aligned + i / 100.0);
+      pose_msg.header.stamp = ros::Time(src_time.toSec() + i / 100.0);
       tf2::Vector3 position = (intersection_center * (pos[i] / distance_) + approach_point_rel * ((distance_ - pos[i]) / distance_));
       tf2::toMsg(position, pose_msg.pose.position);
       result.push_back(pose_msg);
