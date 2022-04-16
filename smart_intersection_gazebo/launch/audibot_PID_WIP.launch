@@ -34,10 +34,16 @@ Each audibot exists in its own space which is defined by the vehicle_id -->
     <param name="/audibot/gps/ref_lon" value="-83.069858" />
 
     <param name="/use_sim_time" value="true" />
-
-    <node pkg="pose_follower_ackermann" type="pose_follower_ackermann_node" name="path_following" output="screen">
-      <param name="vehicle_id" value="$(arg vehicle_id)" />
+    <node pkg="audibot_path_following" type="audibot_path_following" name="lane_path_following" output="screen">
+      <remap from="cmd_vel" to="cmd_vel_lane" />
+      <param name="speed" value="15" />
     </node>
+    <node pkg="pose_follower_ackermann" type="pose_follower_ackermann_node" name="intersection_path_following" output="screen">
+      <param name="vehicle_id" value="$(arg vehicle_id)" />
+      <remap from="cmd_vel" to="cmd_vel_intersection" />
+    </node>
+    <node pkg="control_multiplexer" type="control_multiplexer_node" name="cmd_vel_mux" />
+
     <node pkg="audibot_twist_controller" type="audibot_twist_node" name="twist_control" output="screen" />
 
     <node name="speed_reconfig" pkg="dynamic_reconfigure" type="dynparam" args="set_from_parameters /audibot_$(arg vehicle_id)/path_following">

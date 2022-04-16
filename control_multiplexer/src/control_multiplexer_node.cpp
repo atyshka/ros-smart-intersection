@@ -2,7 +2,7 @@
 #include <std_msgs/Bool.h>
 #include <ros/ros.h>
 
-bool intersection_control;
+bool intersection_control = false;
 
 geometry_msgs::Twist intersection_cmd;
 geometry_msgs::Twist lane_cmd;
