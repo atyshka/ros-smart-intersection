@@ -30,6 +30,7 @@ int vehicle_id;
 bool exiting_intersection = false;
 bool in_intersection = false;
 double approach_intersection_distance = 50.0f;
+char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enough
 
 // PID
 double Kp = 3.5;
@@ -69,13 +70,13 @@ void drCallback(pose_follower_ackermann::PidConfig &config, uint32_t level)
 
 void locationUpdate(const ros::TimerEvent &event){
 
-  if(tf_buffer.canTransform("intersection_1", "audibot_0/base_link", ros::Time(0))){
-    geometry_msgs::TransformStamped iframe_base = tf_buffer.lookupTransform("intersection_1", "audibot_0/base_link", ros::Time(0));
+  if(tf_buffer.canTransform("intersection_1", vehicle_frame_id, ros::Time(0))){
+    geometry_msgs::TransformStamped iframe_base = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
     tf2::Transform iframe_base_tf;
     tf2::fromMsg(iframe_base.transform, iframe_base_tf);
     geometry_msgs::PoseStamped in;
     geometry_msgs::PoseStamped out;
-    in.header.frame_id = "audibot_0/base_link";
+    in.header.frame_id = vehicle_frame_id;
     in.pose.position.x = 0;
     in.pose.position.y = 0;
     in.pose.position.z = 0;
@@ -90,7 +91,7 @@ void locationUpdate(const ros::TimerEvent &event){
 
     double intersection_distance = sqrt(out.pose.position.x * out.pose.position.x + out.pose.position.y * out.pose.position.y);
 
-    ROS_INFO("intersection distance: %f, in intersection: %d, exiting intersection: %d", intersection_distance, in_intersection, exiting_intersection);
+    ROS_INFO_THROTTLE(2,"intersection distance: %f, in intersection: %d, exiting intersection: %d", intersection_distance, in_intersection, exiting_intersection);
 
     if(exiting_intersection){
       if(intersection_distance > approach_intersection_distance){
@@ -102,7 +103,25 @@ void locationUpdate(const ros::TimerEvent &event){
         smart_intersection::PathRequest req;
         req.header.frame_id = "intersection_1";
         req.pose = out;
-        req.direction = 2;
+
+        //in the path request we need to know the direction we're approaching intersection from
+        //we can calculate this out of the intersection position
+        double approach_angle = atan2(out.pose.position.y, out.pose.position.x);
+
+        //map to range 0*PI to 2*PI 
+        approach_angle = (approach_angle > 0) ? approach_angle : 2*PI + approach_angle;
+
+        if (approach_angle < (3.0 * M_PI / 4.0) && approach_angle > (M_PI / 4.0) ) 
+          req.direction = 0; //up  
+        else if(approach_angle < (7.0 * M_PI / 4.0)  && approach_angle > (5.0 * M_PI / 4.0))
+          req.direction = 1; //down
+        else if (approach_angle < (5.0 * M_PI / 4.0) && approach_angle > (3.0 * M_PI / 4.0) )
+          req.direction = 2; // left 
+        else 
+          req.direction = 3; //right 
+        
+        ROS_INFO("Vehicle is approaching from angle %f, selecting direction %d", approach_angle, req.direction);
+
         req.vehicle_id = 0;
         path_req_pub.publish(req);
         in_intersection = true;
@@ -118,7 +137,7 @@ void cmdUpdate(const ros::TimerEvent &event)
 
   int n = latest_path->path.poses.size();
   ROS_DEBUG("Looking up transform");
-  auto pos = tf_buffer.lookupTransform("intersection_1", "audibot_0/base_link", ros::Time(0));
+  auto pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
   tf2::Transform pos_tf, inv_pos_tf;
   tf2::fromMsg(pos.transform, pos_tf);
   inv_pos_tf = pos_tf.inverse();
@@ -214,6 +233,9 @@ int main(int argc, char **argv)
   ros::NodeHandle nh_private("~");
   nh_private.getParam("vehicle_id", vehicle_id);
   tf2_ros::TransformListener tf_listener(tf_buffer);
+
+  //create the string representing the frame ID for the vehicle based on the vehicle_id parameter
+  sprintf(vehicle_frame_id, "audibot_%d/base_link", vehicle_id);
 
   // Creates the dynamic reconfigure server and callback function
   dynamic_reconfigure::Server<pose_follower_ackermann::PidConfig> server;

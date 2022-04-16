@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_geometry_msgs
   tf2_ros
   dynamic_reconfigure
+  smart_intersection
 )
 
 ## System dependencies are found with CMake's conventions
