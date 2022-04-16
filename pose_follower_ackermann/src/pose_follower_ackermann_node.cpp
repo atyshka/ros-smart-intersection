@@ -36,6 +36,8 @@ char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enou
 double Kp = 3.5;
 double Ki = 0.1;
 double Kd = 0.5;
+double integral = 0;
+double integral_x = 0;
 
 void twistCallback(const geometry_msgs::TwistStamped& msg)
 {
@@ -47,6 +49,8 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
   if (msg->vehicle_id == vehicle_id)
   {
     ROS_INFO("Received path...starting intersection control");
+    integral = 0;
+    integral_x = 0;
     latest_path = msg;
     current_node = latest_path->path.poses.begin();
     timer.start();
@@ -56,8 +60,7 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
   }
 }
 
-double integral = 0;
-double integral_x = 0;
+
 // double dr_speed = 15;
 void drCallback(pose_follower_ackermann::PidConfig &config, uint32_t level)
 {
@@ -80,7 +83,7 @@ void locationUpdate(const ros::TimerEvent &event){
     in.pose.position.x = 0;
     in.pose.position.y = 0;
     in.pose.position.z = 0;
-    in.pose.orientation.w = 0;
+    in.pose.orientation.w = 1;
     in.pose.orientation.x = 0;
     in.pose.orientation.y = 0;
     in.pose.orientation.z = 0;
@@ -121,7 +124,7 @@ void locationUpdate(const ros::TimerEvent &event){
           req.direction = 3; //right 
         
         ROS_INFO("Vehicle is approaching from angle %f, selecting direction %d", approach_angle, req.direction);
-
+        req.velocity = actual.linear.x;
         req.vehicle_id = 0;
         path_req_pub.publish(req);
         in_intersection = true;
@@ -255,7 +258,7 @@ int main(int argc, char **argv)
   timer = nh.createTimer(ros::Duration(0.01), cmdUpdate, false); // 100Hz
   timer.stop();
 
-  ros::Timer location_timer = nh.createTimer(ros::Duration(0.1), locationUpdate, false); // 10Hz
+  ros::Timer location_timer = nh.createTimer(ros::Duration(0.001), locationUpdate, false); // 10Hz
 
   ros::spin();
 }
