@@ -29,7 +29,7 @@ std::vector<geometry_msgs::PoseStamped>::const_iterator current_node;
 int vehicle_id;
 bool exiting_intersection = false;
 bool in_intersection = false;
-double approach_intersection_distance = 50.0f;
+double approach_intersection_distance = 45.0f;
 char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enough
 
 // PID
@@ -141,9 +141,10 @@ void cmdUpdate(const ros::TimerEvent &event)
   int n = latest_path->path.poses.size();
   ROS_DEBUG("Looking up transform");
   auto pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
-  tf2::Transform pos_tf, inv_pos_tf;
+  tf2::Transform pos_tf, target_tf;
   tf2::fromMsg(pos.transform, pos_tf);
-  inv_pos_tf = pos_tf.inverse();
+  tf2::Vector3 target, prev_pos, current_pos;
+
   while (current_node->header.stamp < ros::Time::now())
   {
     if (std::next(current_node) == latest_path->path.poses.end())
@@ -162,8 +163,18 @@ void cmdUpdate(const ros::TimerEvent &event)
       return;
     }
     ROS_DEBUG("Advancing to next node");
+    tf2::fromMsg(current_node->pose.position, prev_pos);
     current_node++;
+    tf2::fromMsg(current_node->pose.position, current_pos);
+    // Make rotation matrix orienting path
+    tf2::Matrix3x3 rotation;
+    rotation[0] = (current_pos - prev_pos).normalized();
+    rotation[2] = tf2::Vector3(0, 0, 1);
+    rotation[1] = rotation[2].cross(rotation[0]);
+    target_tf.setBasis(rotation.transpose());
+    target_tf.setOrigin(current_pos);
   }
+  auto vehicle_in_target_frame = (target_tf.inverse() * pos_tf).getOrigin();
   ROS_DEBUG("Node time: %f", current_node->header.stamp.toSec());
   ROS_DEBUG("Current time: %f", ros::Time::now().toSec());
 
@@ -172,12 +183,9 @@ void cmdUpdate(const ros::TimerEvent &event)
   double dt = 0.01;
 
   // Get pose in vehicle frame
-  tf2::Vector3 target_pos;
-  tf2::fromMsg(current_node->pose.position, target_pos);
-  tf2::Vector3 target_in_vehicle_frame = inv_pos_tf * target_pos;
   ROS_DEBUG("Target x %f, actual x %f", current_node->pose.position.x, pos.transform.translation.x);
-  double err_x = target_in_vehicle_frame.x();
-  ROS_DEBUG("Error x: %f", err_x);
+  double err_x = -vehicle_in_target_frame.x();
+  ROS_INFO("Error x: %f", err_x);
 
   double Poutx = Kp * err_x;
 
@@ -199,7 +207,7 @@ void cmdUpdate(const ros::TimerEvent &event)
 
   static double d_err = 0;
 
-  double err = target_in_vehicle_frame.y();
+  double err = -vehicle_in_target_frame.y();
   ROS_DEBUG("Error: %f", err);
 
   double Pout = Kp * err;

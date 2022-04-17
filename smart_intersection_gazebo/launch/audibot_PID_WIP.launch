@@ -47,7 +47,7 @@ Each audibot exists in its own space which is defined by the vehicle_id -->
     <node pkg="audibot_twist_controller" type="audibot_twist_node" name="twist_control" output="screen" />
 
     <node name="speed_reconfig" pkg="dynamic_reconfigure" type="dynparam" args="set_from_parameters /audibot_$(arg vehicle_id)/path_following">
-      <param name="speed" type="double" value="12.0" />
+      <param name="speed" type="double" value="15.0" />
     </node>
 
     <node name="feedback_reconfig" pkg="dynamic_reconfigure" type="dynparam" args="set_from_parameters /audibot_$(arg vehicle_id)/twist_control/steering">

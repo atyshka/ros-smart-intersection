@@ -83,10 +83,10 @@
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
     <state world_name='default'>
-      <sim_time>1022 585000000</sim_time>
-      <real_time>25 369540805</real_time>
-      <wall_time>1648780600 373315434</wall_time>
-      <iterations>24434</iterations>
+      <sim_time>1347 997000000</sim_time>
+      <real_time>328 707089852</real_time>
+      <wall_time>1650170397 955439857</wall_time>
+      <iterations>325412</iterations>
       <model name='Curved Road - 50m_4_clone'>
         <pose frame=''>-227.97 351.484 0 0 -0 3.14159</pose>
         <scale>1 1 1</scale>
@@ -148,10 +148,10 @@
         </link>
       </model>
       <model name='Intersection_15'>
-        <pose frame=''>-150.742 273.966 0.010245 0 -0 0</pose>
+        <pose frame=''>-150.742 273.966 0 0 -0 0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose frame=''>-150.742 273.966 0.010245 0 -0 0</pose>
+          <pose frame=''>-150.742 273.966 0 0 -0 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -213,7 +213,7 @@
     </state>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose frame=''>-251.19 165.017 204.531 0 0.981803 0.786303</pose>
+        <pose frame=''>-175.946 221.683 52.4754 0 0.625796 0.878304</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>

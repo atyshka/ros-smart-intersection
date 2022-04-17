@@ -25,7 +25,7 @@ namespace smart_intersection
       ROS_ERROR("No intersection frame published for intersection %s", intersection_id.c_str());
       throw e;
     }
-    intersection_ = std::make_unique<smart_intersection::Intersection>(Intersection(intersection_tf));
+    intersection_ = std::make_unique<smart_intersection::Intersection>(Intersection(intersection_tf, 45, 10, 2));
     pub_path_ = n.advertise<GuidedPath>("/requested_path", 10);
     pub_raw_path_ = n.advertise<nav_msgs::Path>("/raw_path", 10, true);
     pub_markers_ = n.advertise<visualization_msgs::Marker>("/intersection_markers", 10, true);
@@ -49,17 +49,17 @@ namespace smart_intersection
     marker.color.a = 1.0;
     marker.color.r = 1.0;
     geometry_msgs::Point p;
-    p.x = 50;
+    p.x = 45;
     p.y = 2;
     marker.points.push_back(p);
-    p.x = -50;
+    p.x = -45;
     p.y = -2;
     marker.points.push_back(p);
     p.x = -2;
-    p.y = 50;
+    p.y = 45;
     marker.points.push_back(p);
     p.x = 2;
-    p.y = -50;
+    p.y = -45;
     marker.points.push_back(p);
     pub_markers_.publish(marker);
   }
