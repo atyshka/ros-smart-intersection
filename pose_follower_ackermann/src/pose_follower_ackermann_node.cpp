@@ -22,6 +22,7 @@ ros::Timer timer;
 ros::Publisher twist_pub;
 ros::Publisher bool_pub;
 ros::Publisher path_req_pub;
+ros::Publisher intersection_path_pub_;
 geometry_msgs::Twist command, actual;
 smart_intersection::GuidedPathConstPtr latest_path;
 tf2_ros::Buffer tf_buffer;
@@ -57,6 +58,12 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
     std_msgs::Bool bmsg;
     bmsg.data = true;
     bool_pub.publish(bmsg);
+
+    //when we receive the path for the vehicle publish it out so that RVIZ can show it for debugging. 
+    //having this happen for each vehicle will allow for better visualization.
+    nav_msgs::Path intersection_path = msg->path; 
+    intersection_path.header = msg->header;
+    intersection_path_pub_.publish(intersection_path);    
   }
 }
 
@@ -160,6 +167,14 @@ void cmdUpdate(const ros::TimerEvent &event)
       command.angular.z = 0;
       command.linear.x = 0;
       twist_pub.publish(command);
+
+      //once we've exited the intersection publish a blank intersection path
+      //to indicate on rviz that we're no longer following the intersections path
+      nav_msgs::Path blank_path; 
+      blank_path.header.stamp = ros::Time::now();
+      blank_path.header.frame_id = "world";
+      intersection_path_pub_.publish(blank_path); 
+
       return;
     }
     ROS_DEBUG("Advancing to next node");
@@ -258,7 +273,7 @@ int main(int argc, char **argv)
   twist_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
   bool_pub = nh.advertise<std_msgs::Bool>("intersection_control", 1);
   path_req_pub = nh.advertise<smart_intersection::PathRequest>("/path_req", 1);
-
+  intersection_path_pub_ = nh.advertise<nav_msgs::Path>("intersection_path", 10, true);
   // Subscribers
   ros::Subscriber path_sub = nh.subscribe("/requested_path", 1, pathCallback);
   ros::Subscriber vel_sub = nh.subscribe("twist", 1, twistCallback);
