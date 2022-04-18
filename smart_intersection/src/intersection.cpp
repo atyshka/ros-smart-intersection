@@ -73,7 +73,7 @@ namespace smart_intersection
     generateTrajectory(pos, distance_, speed, speed_, projected_toa_aligned - src_time.toSec(), 100);
     
     // second half, 1-2
-    for (int i = 0; i < (100 * distance_ / speed_); i++)
+    for (int i = 1; i < (100 * distance_ / speed_); i++)
     {
       pos.push_back(distance_ + (double)i / (100 / speed_));
     }
