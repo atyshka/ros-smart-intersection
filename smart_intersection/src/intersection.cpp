@@ -30,6 +30,7 @@ namespace smart_intersection
     // approach point relative to intersection frame
     tf2::Vector3 approach_point_rel;
     tf2::Vector3 intersection_center;
+    intersection_center.setZ(0);
     switch (direction)
     {
     case Direction::UP:

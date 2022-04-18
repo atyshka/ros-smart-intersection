@@ -3,6 +3,8 @@
 
 #include <std_msgs/Float64.h>
 #include <std_msgs/Bool.h>
+#include <nav_msgs/Path.h>
+
 #include <smart_intersection/GuidedPath.h>
 #include <smart_intersection/PathRequest.h>
 #include <geometry_msgs/PoseStamped.h>
@@ -19,10 +21,8 @@
 #define PI 3.1415f
 
 ros::Timer timer;
-ros::Publisher twist_pub;
-ros::Publisher bool_pub;
-ros::Publisher path_req_pub;
-ros::Publisher intersection_path_pub_;
+ros::Publisher twist_pub, bool_pub, path_req_pub, path_vis_pub;
+
 geometry_msgs::Twist command, actual;
 smart_intersection::GuidedPathConstPtr latest_path;
 tf2_ros::Buffer tf_buffer;
@@ -59,11 +59,8 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
     bmsg.data = true;
     bool_pub.publish(bmsg);
 
-    //when we receive the path for the vehicle publish it out so that RVIZ can show it for debugging. 
-    //having this happen for each vehicle will allow for better visualization.
-    nav_msgs::Path intersection_path = msg->path; 
-    intersection_path.header = msg->header;
-    intersection_path_pub_.publish(intersection_path);    
+    //latest_path->path.header.frame_id = "intersection_1";
+    path_vis_pub.publish(latest_path->path);
   }
 }
 
@@ -150,6 +147,7 @@ void cmdUpdate(const ros::TimerEvent &event)
 
   double target_speed;
   geometry_msgs::PoseStamped target_pose;
+  geometry_msgs::PoseStamped current_pose_stamped;
 
   while (current_node->header.stamp < ros::Time::now())
   {
@@ -167,20 +165,21 @@ void cmdUpdate(const ros::TimerEvent &event)
       command.linear.x = 0;
       twist_pub.publish(command);
 
-      //once we've exited the intersection publish a blank intersection path
-      //to indicate on rviz that we're no longer following the intersections path
-      nav_msgs::Path blank_path; 
-      blank_path.header.stamp = ros::Time::now();
-      blank_path.header.frame_id = "world";
-      intersection_path_pub_.publish(blank_path); 
-
+      nav_msgs::Path empty_path;
+      empty_path.header.frame_id = "intersection_1";
+      path_vis_pub.publish(empty_path);
       return;
     }
     tf2::fromMsg(current_node->pose.position, prev_pos);
     geometry_msgs::PoseStamped prev_pose_stamped = *current_node;
     current_node++;
     tf2::fromMsg(current_node->pose.position, current_pos);
-    geometry_msgs::PoseStamped current_pose_stamped = *current_node;
+    current_pose_stamped = *current_node;
+
+    /*if(current_pos.getX() == 0 && current_pos.getY() == 0){
+      ROS_WARN("Vehicle %d: Error loading next path pose", vehicle_id);
+      return; //Check for errors
+    }*/
     // Make rotation matrix orienting path
     tf2::Matrix3x3 rotation;
     rotation[0] = (current_pos - prev_pos).normalized();
@@ -192,10 +191,20 @@ void cmdUpdate(const ros::TimerEvent &event)
     double pose_dist = hypot(current_pose_stamped.pose.position.x - prev_pose_stamped.pose.position.x, current_pose_stamped.pose.position.y - prev_pose_stamped.pose.position.y);
     double pose_time = current_pose_stamped.header.stamp.toSec() - prev_pose_stamped.header.stamp.toSec();
     target_speed = pose_dist / pose_time;
+
+    geometry_msgs::TransformStamped iframe_base = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
+    tf2::doTransform(current_pose_stamped, target_pose, iframe_base);
   }
   auto vehicle_in_target_frame = (target_tf.inverse() * pos_tf).getOrigin();
+  //ROS_INFO("Vehicle %d: vehicle in target frame: x: %f, y: %f, z: %f", vehicle_id, vehicle_in_target_frame.getX(), vehicle_in_target_frame.getY(), vehicle_in_target_frame.getZ());
+  //ROS_INFO("Vehicle %d: target_pose: x: %f, y: %f, z: %f", vehicle_id, target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z);
+  //ROS_INFO("Vehicle %d: current_pose: x: %f, y: %f, z: %f", vehicle_id, current_pose_stamped.pose.position.x, current_pose_stamped.pose.position.y, current_pose_stamped.pose.position.z);
   //ROS_DEBUG("Node time: %f", current_node->header.stamp.toSec());
   //ROS_DEBUG("Current time: %f", ros::Time::now().toSec());
+
+  if(target_pose.pose.position.x == 0 && target_pose.pose.position.y == 0) ROS_WARN("Vehicle %d: Loaded zeroes", vehicle_id);
+  if(target_pose.pose.position.x > 1000 || target_pose.pose.position.y > 1000) ROS_WARN("Vehicle %d: Loaded zeroes", vehicle_id);
+
 
   // PID Heading controller
   static double d_err_x = 0;
@@ -213,7 +222,6 @@ void cmdUpdate(const ros::TimerEvent &event)
 
   double dx = (err_x - d_err_x) / dt;
   double Doutx = Kd * dx;
-S
   float target_speed_diff = Poutx + Ioutx + Doutx;
 
   d_err_x = err_x;*/
@@ -227,30 +235,34 @@ S
   static double d_err = 0;
 
   double err = -vehicle_in_target_frame.y();
-  //ROS_DEBUG("Error: %f", err);
+  if(!std::isnan(err)){
+    //double err = atan2(target_pose.pose.position.y, target_pose.pose.position.x);
 
-  double Pout = Kp * err;
+    double Pout = Kp * err;
 
-  integral += err * dt;
-  double Iout = Ki * integral;
+    integral += err * dt;
+    double Iout = 0;//Ki * integral;
 
-  double d = (err - d_err) / dt;
-  double Dout = Kd * d;
+    double d = (err - d_err) / dt;
+    double Dout = Kd * d;
 
-  float heading_adjust = Pout + Iout + Dout;
+    ROS_INFO_THROTTLE(0.5, "Vehicle: %d: Error: %f, Pout: %f, Iout: %f, Dout: %f", vehicle_id, err, Pout, Iout, Dout);
 
-  d_err = err;
+    float heading_adjust = Pout + Iout + Dout;
 
-  if (heading_adjust > heading_thresh)
-    heading_adjust = heading_thresh;
-  else if (heading_adjust < -1 * heading_thresh)
-    heading_adjust = -1 * heading_thresh;
+    d_err = err;
 
-  // Pack the cmd_vel message
-  command.angular.z = heading_adjust;
-  command.linear.x = target_speed;
+    if (heading_adjust > heading_thresh)
+      heading_adjust = heading_thresh;
+    else if (heading_adjust < -1 * heading_thresh)
+      heading_adjust = -1 * heading_thresh;
 
-  twist_pub.publish(command);
+    // Pack the cmd_vel message
+    command.angular.z = heading_adjust;
+    command.linear.x = target_speed;
+
+    twist_pub.publish(command);
+  } else ROS_WARN("Vehicle %d: Calculated error is NaN", vehicle_id);
 }
 
 
@@ -276,8 +288,9 @@ int main(int argc, char **argv)
   // Publishers
   twist_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
   bool_pub = nh.advertise<std_msgs::Bool>("intersection_control", 1);
+  path_vis_pub = nh.advertise<nav_msgs::Path>("intersection_path", 1);
   path_req_pub = nh.advertise<smart_intersection::PathRequest>("/path_req", 1);
-  intersection_path_pub_ = nh.advertise<nav_msgs::Path>("intersection_path", 10, true);
+
   // Subscribers
   ros::Subscriber path_sub = nh.subscribe("/requested_path", 1, pathCallback);
   ros::Subscriber vel_sub = nh.subscribe("twist", 1, twistCallback);
