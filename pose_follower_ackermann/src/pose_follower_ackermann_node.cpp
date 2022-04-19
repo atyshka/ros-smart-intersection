@@ -59,8 +59,11 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
     bmsg.data = true;
     bool_pub.publish(bmsg);
 
-    //latest_path->path.header.frame_id = "intersection_1";
-    path_vis_pub.publish(latest_path->path);
+    //when we receive the path for the vehicle publish it out so that RVIZ can show it for debugging. 
+    //having this happen for each vehicle will allow for better visualization.
+    nav_msgs::Path intersection_path = msg->path; 
+    intersection_path.header = msg->header;
+    path_vis_pub.publish(intersection_path);
   }
 }
 
@@ -166,7 +169,7 @@ void cmdUpdate(const ros::TimerEvent &event)
       twist_pub.publish(command);
 
       nav_msgs::Path empty_path;
-      empty_path.header.frame_id = "intersection_1";
+      empty_path.header.frame_id = "world";
       path_vis_pub.publish(empty_path);
       return;
     }
