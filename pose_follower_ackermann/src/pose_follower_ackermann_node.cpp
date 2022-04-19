@@ -192,8 +192,8 @@ void cmdUpdate(const ros::TimerEvent &event)
     double pose_time = current_pose_stamped.header.stamp.toSec() - prev_pose_stamped.header.stamp.toSec();
     target_speed = pose_dist / pose_time;
 
-    geometry_msgs::TransformStamped iframe_base = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
-    tf2::doTransform(current_pose_stamped, target_pose, iframe_base);
+    //geometry_msgs::TransformStamped iframe_base = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
+    //tf2::doTransform(current_pose_stamped, target_pose, iframe_base);
   }
   auto vehicle_in_target_frame = (target_tf.inverse() * pos_tf).getOrigin();
   //ROS_INFO("Vehicle %d: vehicle in target frame: x: %f, y: %f, z: %f", vehicle_id, vehicle_in_target_frame.getX(), vehicle_in_target_frame.getY(), vehicle_in_target_frame.getZ());
@@ -202,6 +202,8 @@ void cmdUpdate(const ros::TimerEvent &event)
   //ROS_DEBUG("Node time: %f", current_node->header.stamp.toSec());
   //ROS_DEBUG("Current time: %f", ros::Time::now().toSec());
 
+  if(current_pos.getX() == 0 && current_pos.getY() == 0) ROS_WARN("Vehicle %d: Loaded zeroes", vehicle_id);
+  if(current_pos.getX() > 1000 || current_pos.getY() > 1000) ROS_WARN("Vehicle %d: Loaded value larger than expected", vehicle_id);
 
 
 
@@ -234,8 +236,8 @@ void cmdUpdate(const ros::TimerEvent &event)
   static double d_err = 0;
 
   double err = -vehicle_in_target_frame.y();
+  //double err = atan2(target_pose.pose.position.y, target_pose.pose.position.x);
   if(!std::isnan(err)){
-    //double err = atan2(target_pose.pose.position.y, target_pose.pose.position.x);
 
     double Pout = Kp * err;
 
