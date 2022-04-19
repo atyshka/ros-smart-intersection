@@ -30,7 +30,7 @@ std::vector<geometry_msgs::PoseStamped>::const_iterator current_node;
 int vehicle_id;
 bool exiting_intersection = false;
 bool in_intersection = false;
-double approach_intersection_distance = 45.0f;
+double approach_intersection_distance = 80.0f;
 char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enough
 
 // PID
@@ -202,8 +202,7 @@ void cmdUpdate(const ros::TimerEvent &event)
   //ROS_DEBUG("Node time: %f", current_node->header.stamp.toSec());
   //ROS_DEBUG("Current time: %f", ros::Time::now().toSec());
 
-  if(target_pose.pose.position.x == 0 && target_pose.pose.position.y == 0) ROS_WARN("Vehicle %d: Loaded zeroes", vehicle_id);
-  if(target_pose.pose.position.x > 1000 || target_pose.pose.position.y > 1000) ROS_WARN("Vehicle %d: Loaded zeroes", vehicle_id);
+
 
 
   // PID Heading controller

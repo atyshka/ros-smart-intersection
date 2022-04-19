@@ -34,7 +34,7 @@ Each audibot exists in its own space which is defined by the vehicle_id -->
     <param name="/audibot/gps/ref_lon" value="-83.069858" />
 
     <param name="/use_sim_time" value="true" />
-    <node pkg="audibot_path_following" type="audibot_path_following" name="lane_path_following" output="screen">
+    <node pkg="audibot_path_following" type="audibot_path_following" name="lane_path_following">
       <remap from="cmd_vel" to="cmd_vel_lane" />
       <param name="speed" value="15" />
     </node>

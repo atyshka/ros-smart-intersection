@@ -53,10 +53,6 @@ namespace smart_intersection
 
     ros::Time src_time = ros::Time::now(); // Change this to message stamp
     double projected_toa = src_time.toSec() + distance_ / avg_speed;
-    if (direction == Direction::UP || direction == Direction::DOWN)
-    {
-      projected_toa -= (interval_ / 2);
-    }
     // align to n-second interval
     double projected_toa_aligned = interval_ * ceil(projected_toa / interval_);
     uint64_t key = projected_toa_aligned * 1000;
@@ -65,9 +61,15 @@ namespace smart_intersection
     {
       ROS_INFO("Slot already occupied, delaying");
       key += interval_ * 1000;
+      projected_toa_aligned += interval_;
     }
     slotmap_[key][idx] = true;
-    ROS_INFO("Added slot at %lu", key);
+    ROS_INFO("Added slot at %lu, direction %d", key, idx);
+    if (direction == Direction::UP || direction == Direction::DOWN)
+    {
+      projected_toa_aligned -= (interval_ / 2);
+    }
+    ROS_INFO("Projected toa aligned %f", projected_toa_aligned);
     std::vector<double> pos, vel;
     std::stringstream ss;
     // this generates the first half, cubic in 1d space, 0-1
@@ -82,7 +84,7 @@ namespace smart_intersection
     {
       ss << pos[i] << " ";
     }
-    ROS_INFO("pos %s", ss.str().c_str());
+    // ROS_INFO("pos %s", ss.str().c_str());
     for (int i = 0; i < pos.size(); i++)
     {
       geometry_msgs::PoseStamped pose_msg;
