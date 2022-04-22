@@ -153,6 +153,11 @@ void locationUpdate(const ros::TimerEvent &event){
 
 void cmdUpdate(const ros::TimerEvent &event)
 {
+  if ((event.current_real - event.last_real).toSec() < 0.0001)
+  {
+    ROS_WARN_THROTTLE(1, "Skipping update for vehicle %d, your PC is lagging", vehicle_id);
+    return;
+  }
   int n = latest_path->path.poses.size();
   if (n == 0) {
     ROS_WARN("INVALID PATH");
@@ -275,6 +280,15 @@ void cmdUpdate(const ros::TimerEvent &event)
   // ROS_INFO_THROTTLE(0.1, "Target speed diff: %f", target_speed_diff);
 
   target_speed = actual.linear.x + target_speed_diff; // 18
+
+  if (std::isnan(target_speed)) {
+    ROS_ERROR_STREAM_THROTTLE(0.1, "Vehicle " << vehicle_id << " speed is too high " << target_speed
+                     << "\nTarget tf: " << target_tf.getOrigin().getX() << " " << target_tf.getOrigin().getY() << " " << target_tf.getOrigin().getZ()
+                     << "\nVehicle tf: " << pos_tf.getOrigin().getX() << " " << pos_tf.getOrigin().getY() << " " << pos_tf.getOrigin().getZ()
+                     << "\nRelative tf: " << vehicle_in_target_frame.getX() << " " << vehicle_in_target_frame.getY() << " " << vehicle_in_target_frame.getZ()
+                     << "\nX error: " << err_x << " X dt: " << dx << " X int: " << speed_integral
+                     << "\nCurrent time << " << event.current_real.toSec() << " prev time: " << event.last_real.toSec());
+  }
   
   float steep_turn = 0.3;        // 0.3
   float turn_speed = target_speed;
