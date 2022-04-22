@@ -120,6 +120,7 @@ void locationUpdate(const ros::TimerEvent &event){
         out.header.frame_id = "intersection_1";
         smart_intersection::PathRequest req;
         req.header.frame_id = "intersection_1";
+        req.header.stamp = req.pose.header.stamp;
         req.pose = out;
 
         //in the path request we need to know the direction we're approaching intersection from
@@ -201,7 +202,19 @@ void cmdUpdate(const ros::TimerEvent &event)
   current_target_pose = *current_node;
   tf2::fromMsg(lookahead_node->pose.position, lookahead_pos);
   lookahead_target_pose = *lookahead_node;
-  pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, current_target_pose.header.stamp);
+  try
+  {
+    pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, current_target_pose.header.stamp);
+  }
+  catch(const tf2::ExtrapolationException& e)
+  {
+    ROS_ERROR("Extrapolation exception");
+    ROS_ERROR("Path index %ld", current_node - latest_path->path.poses.begin());
+    ROS_ERROR("Latest data: %f", pos.header.stamp.toSec());
+    ROS_ERROR("Target time: %f", current_target_pose.header.stamp.toSec());
+    ROS_ERROR("Next target time: %f", (current_node + 1)->header.stamp.toSec());
+    throw e;
+  }
   tf2::fromMsg(pos.transform, pos_tf);
   /*if(current_pos.getX() == 0 && current_pos.getY() == 0){
     ROS_WARN("Vehicle %d: Error loading next path pose", vehicle_id);
