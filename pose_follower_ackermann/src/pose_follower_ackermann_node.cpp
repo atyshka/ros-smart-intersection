@@ -34,11 +34,12 @@ double approach_intersection_distance = 80.0f;
 char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enough
 
 // PID
-double Kp = 3.5;
-double Ki = 0.1;
-double Kd = 0.5;
+double Kp = 0.4;
+double Ki = 1e-5;
+double Kd = 5e-2;
 double integral = 0;
 double integral_x = 0;
+double d_err = 0; 
 
 void twistCallback(const geometry_msgs::TwistStamped& msg)
 {
@@ -76,6 +77,9 @@ void drCallback(pose_follower_ackermann::PidConfig &config, uint32_t level)
   Ki = config.ki;
   Kd = config.kd;
   integral = 0;
+
+  ROS_INFO("Audibot_%d updated PID (%f, %f, %f)", vehicle_id, Kp, Ki, Kd);
+
 }
 
 void locationUpdate(const ros::TimerEvent &event){
@@ -199,6 +203,7 @@ void cmdUpdate(const ros::TimerEvent &event)
     //tf2::doTransform(current_pose_stamped, target_pose, iframe_base);
   }
   auto vehicle_in_target_frame = (target_tf.inverse() * pos_tf).getOrigin();
+  auto target_in_vehicle_frame = (pos_tf.inverse() * target_tf).getOrigin();
   //ROS_INFO("Vehicle %d: vehicle in target frame: x: %f, y: %f, z: %f", vehicle_id, vehicle_in_target_frame.getX(), vehicle_in_target_frame.getY(), vehicle_in_target_frame.getZ());
   //ROS_INFO("Vehicle %d: target_pose: x: %f, y: %f, z: %f", vehicle_id, target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z);
   //ROS_INFO("Vehicle %d: current_pose: x: %f, y: %f, z: %f", vehicle_id, current_pose_stamped.pose.position.x, current_pose_stamped.pose.position.y, current_pose_stamped.pose.position.z);
@@ -209,10 +214,8 @@ void cmdUpdate(const ros::TimerEvent &event)
   if(current_pos.getX() > 1000 || current_pos.getY() > 1000) ROS_WARN("Vehicle %d: Loaded value larger than expected", vehicle_id);
 
 
-
   // PID Heading controller
-  static double d_err_x = 0;
-  double dt = 0.01;
+  double dt = (event.current_real - event.last_real).toSec();
 
   // Get pose in vehicle frame
   //ROS_DEBUG("Target x %f, actual x %f", current_node->pose.position.x, pos.transform.translation.x);
@@ -236,21 +239,20 @@ void cmdUpdate(const ros::TimerEvent &event)
   float turn_speed = target_speed;
   float heading_thresh = 1.5; // 1.5
 
-  static double d_err = 0;
-
   double err = -vehicle_in_target_frame.y();
-  //double err = atan2(target_pose.pose.position.y, target_pose.pose.position.x);
-  if(!std::isnan(err)){
+  // double err = atan2(target_in_vehicle_frame.y(), target_in_vehicle_frame.x()) - M_PI/2;
+  
+  if(!std::isnan(err) && dt < 0.1){
 
     double Pout = Kp * err;
 
     integral += err * dt;
-    double Iout = 0;//Ki * integral;
+    double Iout = Ki * integral;
 
     double d = (err - d_err) / dt;
     double Dout = Kd * d;
 
-    ROS_INFO_THROTTLE(0.5, "Vehicle: %d: Error: %f, Pout: %f, Iout: %f, Dout: %f", vehicle_id, err, Pout, Iout, Dout);
+    ROS_INFO_THROTTLE(0.5, "Vehicle: %d: Error: %f, Pout: %f, Iout: %f, Dout: %f timestep dt %f", vehicle_id, err, Pout, Iout, Dout, dt);
 
     float heading_adjust = Pout + Iout + Dout;
 
