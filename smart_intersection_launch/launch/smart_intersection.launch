@@ -23,6 +23,9 @@
     <arg name="intersection_id" value="1" /> <!-- This is one because the default is 0 and I wanna make sure the parameter is being passed properly -->
   </include>
 
+  <rosparam param="Kp"> 0.4 </rosparam>
+  <rosparam param="Ki"> 0.00001 </rosparam>
+  <rosparam param="Kd"> 0.05 </rosparam>
 
   <include file="$(find smart_intersection_gazebo)/launch/audibot.launch" if="$(eval arg('num_audibot') >= 1)">
     <arg name="start_x" value="-303.068004" />

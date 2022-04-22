@@ -34,9 +34,9 @@ double approach_intersection_distance = 80.0f;
 char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enough
 
 // PID
-double Kp = 0.4;
-double Ki = 1e-5;
-double Kd = 5e-2;
+double Kp;
+double Ki;
+double Kd;
 double integral = 0;
 double integral_x = 0;
 double d_err = 0; 
@@ -69,7 +69,7 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
 }
 
 
-// double dr_speed = 15;
+/*// double dr_speed = 15;
 void drCallback(pose_follower_ackermann::PidConfig &config, uint32_t level)
 {
 
@@ -80,7 +80,7 @@ void drCallback(pose_follower_ackermann::PidConfig &config, uint32_t level)
 
   ROS_INFO("Audibot_%d updated PID (%f, %f, %f)", vehicle_id, Kp, Ki, Kd);
 
-}
+}*/
 
 void locationUpdate(const ros::TimerEvent &event){
 
@@ -279,17 +279,21 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "pose_follower_ackermann");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
+
   nh_private.getParam("vehicle_id", vehicle_id);
+  ros::param::get("/Kp", Kp);
+  ros::param::get("/Ki", Ki);
+  ros::param::get("/Kd", Kd);
   tf2_ros::TransformListener tf_listener(tf_buffer);
 
   //create the string representing the frame ID for the vehicle based on the vehicle_id parameter
   sprintf(vehicle_frame_id, "audibot_%d/base_link", vehicle_id);
 
   // Creates the dynamic reconfigure server and callback function
-  dynamic_reconfigure::Server<pose_follower_ackermann::PidConfig> server;
+  /*dynamic_reconfigure::Server<pose_follower_ackermann::PidConfig> server;
   dynamic_reconfigure::Server<pose_follower_ackermann::PidConfig>::CallbackType f;
   f = boost::bind(&drCallback, _1, _2);
-  server.setCallback(f);
+  server.setCallback(f);*/
 
   // Publishers
   twist_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
