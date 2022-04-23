@@ -41,11 +41,13 @@ double integral = 0;
 double integral_x = 0;
 double d_err = 0; 
 
+// Records actual vehicle velocity as reported by the audibo
 void twistCallback(const geometry_msgs::TwistStamped& msg)
 {
   actual = msg.twist;
 }
 
+// Receives path from the intersection and overrides lane following to follow received path
 void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
 {
   if (msg->vehicle_id == vehicle_id)
@@ -68,20 +70,7 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
   }
 }
 
-
-/*// double dr_speed = 15;
-void drCallback(pose_follower_ackermann::PidConfig &config, uint32_t level)
-{
-
-  Kp = config.kp;
-  Ki = config.ki;
-  Kd = config.kd;
-  integral = 0;
-
-  ROS_INFO("Audibot_%d updated PID (%f, %f, %f)", vehicle_id, Kp, Ki, Kd);
-
-}*/
-
+// Check vehicle location relative to the intersection and request path when in range
 void locationUpdate(const ros::TimerEvent &event){
 
   if(tf_buffer.canTransform("intersection_1", vehicle_frame_id, ros::Time(0))){
@@ -95,13 +84,10 @@ void locationUpdate(const ros::TimerEvent &event){
     in.pose.orientation.x = 0;
     in.pose.orientation.y = 0;
     in.pose.orientation.z = 0;
-    //tf_buffer.transform(in, out, "intersection_1");
     tf2::doTransform(in, out, iframe_base);
 
     double intersection_distance = sqrt(out.pose.position.x * out.pose.position.x + out.pose.position.y * out.pose.position.y);
 
-    //ROS_INFO_THROTTLE(2,"intersection distance: %f, in intersection: %d, exiting intersection: %d", intersection_distance, in_intersection, exiting_intersection);
-    //ROS_INFO_THROTTLE(2,"pos: %f %f %f orientation: %f %f %f %f", out.pose.position.x, out.pose.position.y, out.pose.position.z, out.pose.orientation.w, out.pose.orientation.x, out.pose.orientation.y, out.pose.orientation.z);
 
     if(exiting_intersection){
       if(intersection_distance > approach_intersection_distance){
@@ -141,7 +127,7 @@ void locationUpdate(const ros::TimerEvent &event){
   else ROS_WARN("Vehicle %d: Could not get transform from base_link to intersection", vehicle_id);
 }
 
-
+// When in intersection path control, this calculates and publishes cmd_vel
 void cmdUpdate(const ros::TimerEvent &event)
 {
 
@@ -183,10 +169,6 @@ void cmdUpdate(const ros::TimerEvent &event)
     tf2::fromMsg(current_node->pose.position, current_pos);
     current_pose_stamped = *current_node;
 
-    /*if(current_pos.getX() == 0 && current_pos.getY() == 0){
-      ROS_WARN("Vehicle %d: Error loading next path pose", vehicle_id);
-      return; //Check for errors
-    }*/
     // Make rotation matrix orienting path
     tf2::Matrix3x3 rotation;
     rotation[0] = (current_pos - prev_pos).normalized();
@@ -198,49 +180,21 @@ void cmdUpdate(const ros::TimerEvent &event)
     double pose_dist = hypot(current_pose_stamped.pose.position.x - prev_pose_stamped.pose.position.x, current_pose_stamped.pose.position.y - prev_pose_stamped.pose.position.y);
     double pose_time = current_pose_stamped.header.stamp.toSec() - prev_pose_stamped.header.stamp.toSec();
     target_speed = pose_dist / pose_time;
-
-    //geometry_msgs::TransformStamped iframe_base = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
-    //tf2::doTransform(current_pose_stamped, target_pose, iframe_base);
   }
+
   auto vehicle_in_target_frame = (target_tf.inverse() * pos_tf).getOrigin();
   auto target_in_vehicle_frame = (pos_tf.inverse() * target_tf).getOrigin();
-  //ROS_INFO("Vehicle %d: vehicle in target frame: x: %f, y: %f, z: %f", vehicle_id, vehicle_in_target_frame.getX(), vehicle_in_target_frame.getY(), vehicle_in_target_frame.getZ());
-  //ROS_INFO("Vehicle %d: target_pose: x: %f, y: %f, z: %f", vehicle_id, target_pose.pose.position.x, target_pose.pose.position.y, target_pose.pose.position.z);
-  //ROS_INFO("Vehicle %d: current_pose: x: %f, y: %f, z: %f", vehicle_id, current_pose_stamped.pose.position.x, current_pose_stamped.pose.position.y, current_pose_stamped.pose.position.z);
-  //ROS_DEBUG("Node time: %f", current_node->header.stamp.toSec());
-  //ROS_DEBUG("Current time: %f", ros::Time::now().toSec());
 
   if(current_pos.getX() == 0 && current_pos.getY() == 0) ROS_WARN("Vehicle %d: Loaded zeroes", vehicle_id);
   if(current_pos.getX() > 1000 || current_pos.getY() > 1000) ROS_WARN("Vehicle %d: Loaded value larger than expected", vehicle_id);
 
 
-  // PID Heading controller
+  // PID controller
   double dt = (event.current_real - event.last_real).toSec();
 
-  // Get pose in vehicle frame
-  //ROS_DEBUG("Target x %f, actual x %f", current_node->pose.position.x, pos.transform.translation.x);
-  /*double err_x = -vehicle_in_target_frame.x();
-  ROS_DEBUG("Error x: %f", err_x);
-
-  double Poutx = Kp * err_x;
-
-  integral_x += err_x * dt;
-  double Ioutx = Ki * integral;
-
-  double dx = (err_x - d_err_x) / dt;
-  double Doutx = Kd * dx;
-  float target_speed_diff = Poutx + Ioutx + Doutx;
-
-  d_err_x = err_x;*/
-
-
-  //float target_speed = actual.linear.x + target_speed_diff; // 18
-  float steep_turn = 0.3;        // 0.3
-  float turn_speed = target_speed;
   float heading_thresh = 1.5; // 1.5
 
   double err = -vehicle_in_target_frame.y();
-  // double err = atan2(target_in_vehicle_frame.y(), target_in_vehicle_frame.x()) - M_PI/2;
   
   if(!std::isnan(err) && dt < 0.1){
 
@@ -252,7 +206,7 @@ void cmdUpdate(const ros::TimerEvent &event)
     double d = (err - d_err) / dt;
     double Dout = Kd * d;
 
-    ROS_INFO_THROTTLE(0.5, "Vehicle: %d: Error: %f, Pout: %f, Iout: %f, Dout: %f timestep dt %f", vehicle_id, err, Pout, Iout, Dout, dt);
+    ROS_DEBUG_THROTTLE(0.5, "Vehicle: %d: Error: %f, Pout: %f, Iout: %f, Dout: %f timestep dt %f", vehicle_id, err, Pout, Iout, Dout, dt);
 
     float heading_adjust = Pout + Iout + Dout;
 
@@ -279,7 +233,8 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "pose_follower_ackermann");
   ros::NodeHandle nh;
   ros::NodeHandle nh_private("~");
-
+ 
+  // Params
   nh_private.getParam("vehicle_id", vehicle_id);
   ros::param::get("/Kp", Kp);
   ros::param::get("/Ki", Ki);
@@ -288,12 +243,6 @@ int main(int argc, char **argv)
 
   //create the string representing the frame ID for the vehicle based on the vehicle_id parameter
   sprintf(vehicle_frame_id, "audibot_%d/base_link", vehicle_id);
-
-  // Creates the dynamic reconfigure server and callback function
-  /*dynamic_reconfigure::Server<pose_follower_ackermann::PidConfig> server;
-  dynamic_reconfigure::Server<pose_follower_ackermann::PidConfig>::CallbackType f;
-  f = boost::bind(&drCallback, _1, _2);
-  server.setCallback(f);*/
 
   // Publishers
   twist_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
