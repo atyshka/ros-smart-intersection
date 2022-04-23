@@ -21,7 +21,7 @@
 #define PI 3.1415f
 
 ros::Timer timer;
-ros::Publisher twist_pub, bool_pub, path_req_pub, path_vis_pub;
+ros::Publisher twist_pub, bool_pub, path_req_pub, path_vis_pub, x_err_pub;
 
 geometry_msgs::Twist command, actual;
 smart_intersection::GuidedPathConstPtr latest_path;
@@ -34,12 +34,16 @@ double approach_intersection_distance = 80.0f;
 char vehicle_frame_id[64]; //no idea how big this should be, 64 is probably enough
 
 // PID
-double Kp;
-double Ki;
-double Kd;
-double integral = 0;
-double integral_x = 0;
-double d_err = 0; 
+double yaw_Kp = 0;
+double yaw_Ki = 0;
+double yaw_Kd = 0;
+double yaw_integral = 0;
+double yaw_prev_err = 0;
+double speed_Kp = 2;
+double speed_Ki = 0.01;
+double speed_Kd =  0.5;
+double speed_integral = 0;
+double speed_prev_err = 0;
 
 // Records actual vehicle velocity as reported by the audibo
 void twistCallback(const geometry_msgs::TwistStamped& msg)
@@ -53,8 +57,8 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
   if (msg->vehicle_id == vehicle_id)
   {
     ROS_INFO("Vehicle %d received path...starting intersection control", vehicle_id);
-    integral = 0;
-    integral_x = 0;
+    yaw_integral = 0;
+    speed_integral = 0;
     latest_path = msg;
     current_node = latest_path->path.poses.begin();
     timer.start();
@@ -70,7 +74,6 @@ void pathCallback(const smart_intersection::GuidedPathConstPtr &msg)
   }
 }
 
-// Check vehicle location relative to the intersection and request path when in range
 void locationUpdate(const ros::TimerEvent &event){
 
   if(tf_buffer.canTransform("intersection_1", vehicle_frame_id, ros::Time(0))){
@@ -98,6 +101,7 @@ void locationUpdate(const ros::TimerEvent &event){
         out.header.frame_id = "intersection_1";
         smart_intersection::PathRequest req;
         req.header.frame_id = "intersection_1";
+        req.header.stamp = req.pose.header.stamp;
         req.pose = out;
 
         //in the path request we need to know the direction we're approaching intersection from
@@ -130,21 +134,31 @@ void locationUpdate(const ros::TimerEvent &event){
 // When in intersection path control, this calculates and publishes cmd_vel
 void cmdUpdate(const ros::TimerEvent &event)
 {
-
+  if ((event.current_real - event.last_real).toSec() < 0.0001)
+  {
+    ROS_WARN_THROTTLE(1, "Skipping update for vehicle %d, your PC is lagging", vehicle_id);
+    return;
+  }
   int n = latest_path->path.poses.size();
+  if (n == 0) {
+    ROS_WARN("INVALID PATH");
+  }
   ROS_DEBUG("Vehicle %d: Looking up transform", vehicle_id);
-  auto pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
+  
   tf2::Transform pos_tf, target_tf;
-  tf2::fromMsg(pos.transform, pos_tf);
-  tf2::Vector3 target, prev_pos, current_pos;
+  
+  tf2::Vector3 target, current_pos, lookahead_pos;
 
   double target_speed;
-  geometry_msgs::PoseStamped target_pose;
-  geometry_msgs::PoseStamped current_pose_stamped;
-
-  while (current_node->header.stamp < ros::Time::now())
+  geometry_msgs::PoseStamped current_target_pose, lookahead_target_pose;
+  geometry_msgs::PoseStamped actual_pose_stamped;
+  auto pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, ros::Time(0));
+  auto lookahead_node = current_node + 20;
+  while ((current_node+1)->header.stamp < pos.header.stamp)
   {
-    if (std::next(current_node) == latest_path->path.poses.end())
+    current_node++;
+    lookahead_node = current_node + 20;
+    if (lookahead_node >= latest_path->path.poses.end())
     {
       ROS_INFO("Vehicle %d: Intersection path following complete", vehicle_id);
       timer.stop();
@@ -163,24 +177,34 @@ void cmdUpdate(const ros::TimerEvent &event)
       path_vis_pub.publish(empty_path);
       return;
     }
-    tf2::fromMsg(current_node->pose.position, prev_pos);
-    geometry_msgs::PoseStamped prev_pose_stamped = *current_node;
-    current_node++;
-    tf2::fromMsg(current_node->pose.position, current_pos);
-    current_pose_stamped = *current_node;
 
-    // Make rotation matrix orienting path
-    tf2::Matrix3x3 rotation;
-    rotation[0] = (current_pos - prev_pos).normalized();
-    rotation[2] = tf2::Vector3(0, 0, 1);
-    rotation[1] = rotation[2].cross(rotation[0]);
-    target_tf.setBasis(rotation.transpose());
-    target_tf.setOrigin(current_pos);
-
-    double pose_dist = hypot(current_pose_stamped.pose.position.x - prev_pose_stamped.pose.position.x, current_pose_stamped.pose.position.y - prev_pose_stamped.pose.position.y);
-    double pose_time = current_pose_stamped.header.stamp.toSec() - prev_pose_stamped.header.stamp.toSec();
-    target_speed = pose_dist / pose_time;
   }
+  tf2::fromMsg(current_node->pose.position, current_pos);
+  current_target_pose = *current_node;
+  tf2::fromMsg(lookahead_node->pose.position, lookahead_pos);
+  lookahead_target_pose = *lookahead_node;
+  try
+  {
+    pos = tf_buffer.lookupTransform("intersection_1", vehicle_frame_id, current_target_pose.header.stamp);
+  }
+  catch(const tf2::ExtrapolationException& e)
+  {
+    ROS_ERROR("Extrapolation exception");
+    ROS_ERROR("Path index %ld", current_node - latest_path->path.poses.begin());
+    ROS_ERROR("Latest data: %f", pos.header.stamp.toSec());
+    ROS_ERROR("Target time: %f", current_target_pose.header.stamp.toSec());
+    ROS_ERROR("Next target time: %f", (current_node + 1)->header.stamp.toSec());
+    throw e;
+  }
+  tf2::fromMsg(pos.transform, pos_tf);
+
+  // Make rotation matrix orienting path
+  tf2::Matrix3x3 rotation;
+  rotation[0] = (lookahead_pos - current_pos).normalized();
+  rotation[2] = tf2::Vector3(0, 0, 1);
+  rotation[1] = rotation[2].cross(rotation[0]);
+  target_tf.setBasis(rotation.transpose());
+  target_tf.setOrigin(current_pos);
 
   auto vehicle_in_target_frame = (target_tf.inverse() * pos_tf).getOrigin();
   auto target_in_vehicle_frame = (pos_tf.inverse() * target_tf).getOrigin();
@@ -191,6 +215,49 @@ void cmdUpdate(const ros::TimerEvent &event)
 
   // PID controller
   double dt = (event.current_real - event.last_real).toSec();
+  if (dt > 0.1)
+  {
+    dt = 0.01;
+  }
+  // Get pose in vehicle frame
+  //ROS_DEBUG("Target x %f, actual x %f", current_node->pose.position.x, pos.transform.translation.x);
+  double err_x = -vehicle_in_target_frame.x();
+  if (err_x == 0) {
+    ROS_WARN("Received 0 error");
+    ROS_WARN("Target tf: %f, %f, %f", target_tf.getOrigin().getX(), target_tf.getOrigin().getY(), target_tf.getOrigin().getZ());
+    ROS_WARN("Vehicle tf: %f, %f, %f", pos_tf.getOrigin().getX(), pos_tf.getOrigin().getY(), pos_tf.getOrigin().getZ());
+    ROS_WARN("Relative tf: %f, %f, %f", vehicle_in_target_frame.getX(), vehicle_in_target_frame.getY(), vehicle_in_target_frame.getZ());
+  }
+  std_msgs::Float64 err_msg;
+  err_msg.data = err_x;
+  x_err_pub.publish(err_msg);
+  // ROS_INFO_THROTTLE(0.1, "Error x: %f", err_x);
+  // ROS_INFO("Integral x: %f", speed_integral);
+  double Poutx = speed_Kp * err_x;
+
+  speed_integral += err_x * dt;
+  double Ioutx = speed_Ki * speed_integral;
+
+  double dx = (err_x - speed_prev_err) / dt;
+  double Doutx = speed_Kd * dx;
+  float target_speed_diff = Poutx + Ioutx + Doutx;
+
+  speed_prev_err = err_x;
+  // ROS_INFO_THROTTLE(0.1, "Target speed diff: %f", target_speed_diff);
+
+  target_speed = actual.linear.x + target_speed_diff; // 18
+
+  if (std::isnan(target_speed)) {
+    ROS_ERROR_STREAM_THROTTLE(0.1, "Vehicle " << vehicle_id << " speed is too high " << target_speed
+                     << "\nTarget tf: " << target_tf.getOrigin().getX() << " " << target_tf.getOrigin().getY() << " " << target_tf.getOrigin().getZ()
+                     << "\nVehicle tf: " << pos_tf.getOrigin().getX() << " " << pos_tf.getOrigin().getY() << " " << pos_tf.getOrigin().getZ()
+                     << "\nRelative tf: " << vehicle_in_target_frame.getX() << " " << vehicle_in_target_frame.getY() << " " << vehicle_in_target_frame.getZ()
+                     << "\nX error: " << err_x << " X dt: " << dx << " X int: " << speed_integral
+                     << "\nCurrent time << " << event.current_real.toSec() << " prev time: " << event.last_real.toSec());
+  }
+  
+  float steep_turn = 0.3;        // 0.3
+  float turn_speed = target_speed;
 
   float heading_thresh = 1.5; // 1.5
 
@@ -198,19 +265,19 @@ void cmdUpdate(const ros::TimerEvent &event)
   
   if(!std::isnan(err) && dt < 0.1){
 
-    double Pout = Kp * err;
+    double Pout = yaw_Kp * err;
 
-    integral += err * dt;
-    double Iout = Ki * integral;
+    yaw_integral += err * dt;
+    double Iout = yaw_Ki * yaw_integral;
 
-    double d = (err - d_err) / dt;
-    double Dout = Kd * d;
+    double d = (err - yaw_prev_err) / dt;
+    double Dout = yaw_Kd * d;
 
     ROS_DEBUG_THROTTLE(0.5, "Vehicle: %d: Error: %f, Pout: %f, Iout: %f, Dout: %f timestep dt %f", vehicle_id, err, Pout, Iout, Dout, dt);
 
     float heading_adjust = Pout + Iout + Dout;
 
-    d_err = err;
+    yaw_prev_err = err;
 
     if (heading_adjust > heading_thresh)
       heading_adjust = heading_thresh;
@@ -236,9 +303,9 @@ int main(int argc, char **argv)
  
   // Params
   nh_private.getParam("vehicle_id", vehicle_id);
-  ros::param::get("/Kp", Kp);
-  ros::param::get("/Ki", Ki);
-  ros::param::get("/Kd", Kd);
+  ros::param::get("/Kp", yaw_Kp);
+  ros::param::get("/Ki", yaw_Ki);
+  ros::param::get("/Kd", yaw_Kd);
   tf2_ros::TransformListener tf_listener(tf_buffer);
 
   //create the string representing the frame ID for the vehicle based on the vehicle_id parameter
@@ -249,6 +316,7 @@ int main(int argc, char **argv)
   bool_pub = nh.advertise<std_msgs::Bool>("intersection_control", 1);
   path_vis_pub = nh.advertise<nav_msgs::Path>("intersection_path", 1);
   path_req_pub = nh.advertise<smart_intersection::PathRequest>("/path_req", 1);
+  x_err_pub = nh.advertise<std_msgs::Float64>("x_err", 1);
 
   // Subscribers
   ros::Subscriber path_sub = nh.subscribe("/requested_path", 1, pathCallback);

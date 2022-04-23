@@ -92,10 +92,10 @@ namespace smart_intersection
       path_out.vehicle_id = path_req.vehicle_id;
       pub_path_.publish(path_out);
       path_out.path.header.frame_id = frame_;
-      ROS_INFO("Use system time: %d", (int)ros::Time::useSystemTime());
+      // ROS_INFO("Use system time: %d", (int)ros::Time::useSystemTime());
       path_out.path.header.stamp = ros::Time::now();
-      ROS_INFO("Path time: %f", path_out.path.header.stamp.toSec());
-      ROS_INFO("Sim time: %d", (int)path_out.path.header.stamp.isSimTime());
+      // ROS_INFO("Path time: %f", path_out.path.header.stamp.toSec());
+      // ROS_INFO("Sim time: %d", (int)path_out.path.header.stamp.isSimTime());
       pub_raw_path_.publish(path_out.path);
     }
   }

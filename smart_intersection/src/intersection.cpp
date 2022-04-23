@@ -51,7 +51,7 @@ namespace smart_intersection
       break;
     }
 
-    ros::Time src_time = ros::Time::now(); // Change this to message stamp
+    ros::Time src_time = pose.header.stamp; // Change this to message stamp
     double projected_toa = src_time.toSec() + distance_ / avg_speed;
     // align to n-second interval
     double projected_toa_aligned = interval_ * ceil(projected_toa / interval_);
