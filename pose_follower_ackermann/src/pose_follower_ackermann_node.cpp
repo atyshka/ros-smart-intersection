@@ -196,7 +196,7 @@ void cmdUpdate(const ros::TimerEvent &event)
     ROS_ERROR("Next target time: %f", (current_node + 1)->header.stamp.toSec());
     throw e;
   }
-  tf2::fromMsg(pos.transform, pos_tf);
+  tf2::fromMsg(pos.transform, pos_tf); 
 
   // Make rotation matrix orienting path
   tf2::Matrix3x3 rotation;
